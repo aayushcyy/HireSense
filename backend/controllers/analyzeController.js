@@ -12,10 +12,10 @@ export const analyzeResume = async (req, res) => {
         .json({ error: "Missing resume or job description" });
     }
 
-    const prompt = `You are an expert recruiter. Analyze the following resume against the job description. Return a JSON object with: 1. "match_score": A number out of 100. 2. "missing_skills": An array of skills missing or weak in the resume. 3. "feedback": One paragraph of professional advice to improve the resume. Resume:${resumeText} and Job Description:${jobDescription}`;
+    const prompt = `You are an expert recruiter. Analyze the following resume against the job description. Return ONLY a raw JSON object without markdown formatting. It should contain: 1. "match_score": Number (0–100), 2. "missing_skills": Array of strings, 3. "feedback": A brief paragraph, 4. "time_to_read_resume": Total time read the resume by recruiter, 5. job_description_summary: A brief jd summary, 6. resume_summary: A brief resume summary. Resume: ${resumeText} Job Description: ${jobDescription}`;
 
     const response = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo", // or "gpt-4"
+      model: "gpt-4o-mini", // or "gpt-4"
       messages: [{ role: "user", content: prompt }],
       temperature: 0.3,
     });
@@ -23,7 +23,8 @@ export const analyzeResume = async (req, res) => {
     const gptOutput = response.choices[0].message.content;
 
     // Try parsing response to JSON
-    const data = JSON.parse(gptOutput);
+    const cleanJson = gptOutput.replace(/```json|```/g, "").trim();
+    const data = JSON.parse(cleanJson);
 
     // Save to MongoDB
     const newAnalysis = new Analysis({
@@ -40,6 +41,9 @@ export const analyzeResume = async (req, res) => {
       matchScore: data.match_score,
       missingSkills: data.missing_skills,
       feedback: data.feedback,
+      time_to_read_resume: data.time_to_read_resume,
+      job_description_summary: data.job_description_summary,
+      resume_summary: data.resume_summary,
     });
   } catch (err) {
     console.error("OpenAI/Parsing error: ", err);
